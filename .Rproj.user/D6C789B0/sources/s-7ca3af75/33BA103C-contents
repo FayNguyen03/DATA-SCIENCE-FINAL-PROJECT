@@ -1,0 +1,361 @@
+---
+title: "FINAL PROJECT"
+author: "Khanh Tra Nguyen Tran, Luanga Kasanga"
+date: "12/6/2023"
+output:
+  pdf_document: default
+  html_document: default
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE, error = TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+library(kableExtra)
+library(tidyverse)
+library(ggplot2)
+library(readr)
+library(dplyr)
+library(zoo)
+library(ggridges)
+library(countrycode)
+library(lubridate)
+library(ggplot2)
+library(gganimate)
+library(plotly)
+
+```
+
+```{r}
+co2 <- readr::read_csv('~/Mscs 164 F23/Project/Fay & Luanga Project Folder/Fay_Luanga/owid-co2-data.csv')
+codebook <-  readr::read_csv('~/Mscs 164 F23/Project/Fay & Luanga Project Folder/Fay_Luanga/owid-co2-codebook.csv')
+Climate_related_Disasters_Frequency <- read_csv("~/Mscs 164 F23/Project/Fay & Luanga Project Folder/Fay_Luanga/Climate-related_Disasters_Frequency.csv")
+```
+
+# I. WRANGLE DATA:
+
+```{r}
+continent_co2 <- co2 |>
+  filter(year >= 1970, country %in% c("Africa","Asia", "Europe", "South America", "North America", "Oceania")) |>
+  select(-gdp)
+```
+
+
+```{r}
+country_co2 <- co2 |>
+  filter(year >= 1970, !(country %in% c("Africa","Asia", "Europe", "South America", "North America", "Oceania")), 
+         !is.na(iso_code))
+```
+
+Here we are pivoting longer the Climate Related Disasters Frequency Data in order to make it suitable for viewing.
+
+```{r}
+disasters_long <- Climate_related_Disasters_Frequency |> 
+  filter(Indicator == "Climate related disasters frequency, Number of Disasters: TOTAL") |>
+  pivot_longer(
+    cols = starts_with("F"), 
+    names_to = "year", 
+    values_to = "disasters"
+  ) |>
+mutate_at("year", str_replace, "F", "") |>
+ replace_na(list(disasters = 0)) |>
+  mutate(iso_code = ISO3) |>
+  select(year, iso_code, disasters) 
+
+```
+
+
+```{r}
+disasters_long$continent <- countrycode(sourcevar = disasters_long$iso_code,
+                             origin = "iso3c",
+                             destination = "un.region.name")
+disasters_long$country <- countrycode(sourcevar = disasters_long$iso_code,
+                             origin = "iso3c",
+                             destination = "iso.name.en")
+country_co2$region <- countrycode(sourcevar = country_co2$iso_code,
+                             origin = "iso3c",
+                             destination = "un.region.name")
+```
+
+
+We also need to join the climate_related disasters data to our country_co2 dataset. For now, I am just putting it in country_co2_2 so we don't mess up our data. 
+
+```{r, eror = TRUE}
+country_disaster <- country_co2 |>
+  filter(year > 2010) |>
+  left_join(disasters_long, join_by(iso_code), relationship = "one-to-one") 
+```
+
+
+# DATASET OVERVIEW
+
+Table with variables we consider:
+
+```{r}
+country_graph1 <- data_frame(
+Variable = c("cement_co2", "coal_co2", "flaring_co2", "gas_co2", "land_use_change_co2", "oil_co2", "other_industry_co2"),
+Definition = codebook |> 
+  filter(column %in% Variable) |>
+  pull(description))
+kable(country_graph1, caption = "Variables in Graph F1")
+```
+
+
+### Top 10 countries with CO2 emission
+
+```{r,error =TRUE}
+top10_country <- country_co2 |>
+  filter(year == 2021) |>
+  slice_max(cumulative_co2_including_luc, n = 10) |>
+  mutate(ranking = row_number()) |>
+  tibble("top_country" = country, "rank" = ranking) |>
+  select(top_country, rank)
+```
+
+```{r,error =TRUE}
+a <- country_co2 |> 
+  right_join(top10_country, join_by(country == top_country)) |>
+  select(country,
+         year, 
+         cement_co2, 
+         coal_co2, 
+         flaring_co2, 
+         gas_co2, 
+         land_use_change_co2,
+         oil_co2, 
+         other_industry_co2,
+         co2_including_luc) |>
+  replace_na(list(other_industry_co2 = 0)) |>
+  mutate(country = fct_relevel(country, "United States", "China", "Russia", "Brazil", "India", "Germany", "Indonesia", "United Kingdom", "Canada", "Japan")) |>
+  pivot_longer(cement_co2:other_industry_co2, names_to = "co2_sources", values_to = "value") |>
+  mutate(co2_sources = fct_recode(co2_sources, 
+                                  "Coal" = "coal_co2",
+                                  "Flaring" = "flaring_co2",
+                                  "Cement" = "cement_co2",
+                                  "Gas" = "gas_co2",
+                                  "Land Use" = "land_use_change_co2",
+                                  "Oil" = "oil_co2",
+                                  "Other industry" = "other_industry_co2"))
+```
+
+
+Animated stacked bar chart
+
+```{r}
+  a |> ggplot(aes(x=year, 
+                  y=value, 
+                  fill=fct_reorder2(co2_sources, value, year))) +
+  geom_area() +
+  facet_wrap(~country) +
+  theme_classic() +
+  labs(title = "F1", alt ="aa", x = "Year", y = "Carbon Dioxide Emission", fill = "Sources") 
+```
+
+# 10 MOST DISASTER
+
+```{r,error =TRUE}
+top10_disaster <-
+  disasters_long |>
+  group_by(iso_code) |>
+  summarize(sum_disaster = sum(disasters)) |>
+  slice_max(sum_disaster, n = 10)
+```
+
+
+```{r,error =TRUE}
+b <- country_co2 |> 
+  semi_join(top10_disaster, join_by(iso_code)) |>
+  select(country,
+         year, 
+         cement_co2, 
+         coal_co2, 
+         flaring_co2, 
+         gas_co2, 
+         land_use_change_co2,
+         oil_co2, 
+         other_industry_co2,
+         co2_including_luc) |>
+   mutate(country = fct_relevel(country, "United States", "China", "India", "Philippines", "Indonesia", "Bangladesh", "Vietnam", "Mexico", "Brazil", "Japan")) |>
+  replace_na(list(other_industry_co2 = 0)) |>
+  pivot_longer(cement_co2:other_industry_co2, names_to = "co2_sources", values_to = "value")
+```
+
+
+Animated stacked bar chart
+
+```{r}
+  b |> ggplot(aes(x = year)) +
+  geom_area(aes(y=value, 
+                  fill=fct_reorder2(co2_sources, value, desc(year)))) +
+  geom_(data = disasters_long, aes(y = disasters)) +
+  facet_wrap(~country) +
+  theme_classic() +
+  labs(title = "F2", alt ="aa", x = "Year", y = "Carbon Dioxide Emission", fill = "Sources") 
+```
+
+
+### How has each continent fared when it comes to energy per gdp?
+
+Variable: energy_per_gdp
+
+
+```{r}
+continent_co2 |>
+  select(country, year, primary_energy_consumption) |>
+  ggplot(aes(x = year, y = primary_energy_consumption)) +
+geom_point() +
+geom_path() +
+geom_hline(yintercept = 0) +
+scale_color_colorblind() +
+labs(color = "Country", title = "Relationship of energy production to Imports over time\nfor top 5 global energy producer", subtitle = "Net imports below 0 indicates exporting of energy", caption = "Data source: To be added")
+
+```
+
+
+### Which continents bear the brunt of responsiblity, and then the consequences climate change??
+
+Variable: co2_per_capita
+
+```{r}
+continent_co2 |>
+  filter(year >= 1970) |>
+  ggplot() +
+  geom_col(aes(x = year, y = co2_per_capita, fill = country), position = "fill") +
+  coord_flip() + 
+  labs(title = "Contribution to Climate Change by Continent", caption = "Data from ourworldindata.com", x = "Year", y = "CO2 Per Capita (% of global)", fill = "Continent")
+  
+```
+
+And now, which countries are ruined by climate change related disasters?
+
+```{r}
+disasters_long |>
+  filter(year >= 1990) |>
+  ggplot() +
+  geom_col(aes(x = year, y = disasters, fill = continent), position = "fill") +
+  coord_flip() + 
+  labs(title = "Sufferors of Climate Change by Continent", caption = "Data from ourworldindata.com", x = "Year", y = "Share of Climate Related Disasters", fill = "Continent")
+  
+```
+ 
+
+
+Just testing some stuff:
+```{r}
+continent_co2 |>
+  filter(year >= 1970) |>
+ggplot(aes(group = country, x = year, y = population, color = country)) +
+geom_smooth(aes(), se = FALSE, size = 0.5) +
+  labs(
+  title = "Population vs CO2 Expansion",
+  subtitle = "1970-Present",
+  caption = "Data from Ourworldindata.org",
+  tag = "Graph 5",
+  alt = "?",
+  alt_insight = "insight"
+)
+
+```
+
+
+ignore pls
+```{r}
+continent_co2 |>
+  filter(year >= 1970) |>
+ggplot(aes(group = country, x=year, fill = country)) +
+geom_point(stat='identity', aes(y="co2"), size=.1, color="black", alpha=.4) + 
+  geom_line(aes(y=population), size=0.5) +
+  
+  scale_y_continuous(
+    
+    # Features of the first axis
+    name = "Temperature (Celsius °)",
+    
+    # Add a second axis and specify its features
+    sec.axis = sec_axis(name="Price ($)")
+  ) + 
+
+  ggtitle("Temperature down, price up")
+
+```
+
+
+```{r}
+continent_co2 |>
+  #filter(year >= 1970) |>
+ggplot(aes(group = country, x=year, colour = country)) +
+#geom_line(aes(y=population), size=0.5) +
+  geom_line(aes(y=co2))
+```
+
+Interactive Plot
+
+```{r}
+country_co2 |>
+  filter(year = 2018) |>
+ggplot(aes(population, co2_per_gdp, colour = region, label = country)) +
+  geom_point() +
+  theme_bw() 
+
+  ggplotly()
+```
+
+
+
+
+
+
+
+
+How country CO2 emissions and GDP has changed over time.
+```{r}
+
+continent_co2 |>
+  
+```
+
+ANIMATED PLOT
+
+
+```{r}
+ggplot(
+  continent_co2, 
+  aes(x = co2, y=co2_per_capita, size = population, colour = country)
+  ) +
+  geom_point(show.legend = TRUE, alpha = 0.7) +
+  scale_color_viridis_d() +
+  scale_size(range = c(2, 12)) +
+  scale_x_log10() +
+  labs(x = "CO2 emissions", y = "CO2 per capita") + transition_time(year) +
+  labs(title = "Year: {frame_time}")
+```
+with facet wraps (ignore)
+```{r}
+ggplot(
+  continent_co2, 
+  aes(x = co2, y=co2_per_capita, size = population, colour = country)
+  ) +
+  geom_point(show.legend = TRUE, alpha = 0.7) +
+  scale_color_viridis_d() +
+  scale_size(range = c(2, 12)) +
+  scale_x_log10() +
+  labs(x = "CO2 emissions", y = "CO2 per capita") +
+  facet_wrap(~country) + transition_time(year) +
+  labs(title = "Year: {frame_time}")
+```
+
+
+```{r}
+ggplot(
+  continent_co2,
+  aes(year, co2_per_capita, group = country, color = factor(country))
+  ) +
+  geom_line() +
+  scale_color_viridis_d() +
+  labs(x = "Year", y = "CO2 Per Capita", color = "Continent", subtitle = "-", title = "Emissions over the years...", caption = "Data from Our World in Data Org" ) +
+  theme(legend.position = "top") +
+  geom_point(aes(group = seq_along(year))) + transition_reveal(year)
+```
+
+
+

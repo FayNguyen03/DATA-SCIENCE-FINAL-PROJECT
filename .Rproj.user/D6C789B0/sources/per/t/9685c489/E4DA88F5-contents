@@ -1,0 +1,132 @@
+---
+title: "FINAL PROJECT"
+author: "Khanh Tra Nguyen Tran, Luanga Kasanga"
+date: "12/6/2023"
+output:
+  html_document: default
+  pdf_document: default
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(kableExtra)
+library(tidyverse)
+library(ggplot2)
+library(readr)
+library(dplyr)
+library(zoo)
+library(ggridges)
+
+```
+
+```{r}
+co2 <- readr::read_csv('owid-co2-data.csv')
+codebook <-  readr::read_csv('owid-co2-codebook.csv')
+library(readr)
+Climate_related_Disasters_Frequency <- read_csv("~/Mscs 164 F23/Project/Fay & Luanga Project Folder/Fay_Luanga/Climate-related_Disasters_Frequency.csv")
+View(Climate_related_Disasters_Frequency)
+```
+
+# I. WRANGLE DATA:
+
+```{r}
+continent_co2 <- co2 |>
+  filter(year >= 1970, country %in% c("Africa","Asia", "Europe", "South America", "North America", "Oceania")) |>
+  select(-gdp)
+```
+
+```{r}
+continent_co2 <- co2 |>
+  filter(year >= 1970, country %in% c("Africa","Asia", "Europe", "South America", "North America", "Oceania")) |>
+  select(-gdp)
+```
+
+```{r}
+country_co2 <- co2 |>
+  filter(year >= 1970, !(country %in% c("Africa","Asia", "Europe", "South America", "North America", "Oceania"))) 
+```
+
+Here we are pivoting longer the Climate Related Disasters Frequency Data in order to make it suitable for viewing.
+
+```{r}
+
+disasters_long <- Climate_related_Disasters_Frequency |> 
+  pivot_longer(
+    cols = starts_with("F"), 
+    names_to = "year", 
+    values_to = "disasters"
+  ) |>
+mutate_at("year", str_replace, "F", "") |>
+ replace_na(list(disasters = 0)) |>
+  mutate(iso_code = ISO3) |>
+  select(year, iso_code, disasters)
+
+```
+
+
+
+We also need to join the climate_related disasters data to our country_co2 dataset. For now, I am just putting it in country_co2_2 so we don't mess up our data. 
+
+```{r}
+help <- country_co2 |>
+  left_join(disasters_long, join_by(iso_code), relationship = "many-to-many") |>
+  select(disasters) |>
+  filter(year >= 2020) |>
+  view(help)
+
+
+
+```
+
+
+# DATASET OVERVIEW
+
+Table with variables we consider:
+
+```{r}
+country_graph1 <- data_frame(
+Variable = c("cement_co2", "coal_co2", "flaring_co2", "gas_co2", "land_use_change_co2", "oil_co2", "other_industry_co2"),
+Definition = codebook |> 
+  filter(column %in% Variable) |>
+  pull(description))
+kable(country_graph1, caption = "Variables in Graph F1")
+```
+
+```{r}
+country_co2 |>
+  select(country, coal_co2, cement_co2, )
+```
+
+### How has each continent fared when it comes to energy per gdp?
+
+Variable: energy_per_gdp
+
+
+```{r}
+continent_co2 |>
+  select(country, year, primary_energy_consumption) |>
+  ggplot(aes(x = year, y = primary_energy_consumption)) +
+geom_point() +
+geom_path() +
+geom_hline(yintercept = 0) +
+scale_color_colorblind() +
+labs(color = "Country", title = "Relationship of energy production to Imports over time\nfor top 5 global energy producer", subtitle = "Net imports below 0 indicates exporting of energy", caption = "Data source: To be added")
+
+```
+
+
+### Which continents bear the brunt of climate change??
+
+Variable: co2_per_capita
+
+```{r}
+continent_co2 |>
+  filter(year >= 2018) |>
+ggplot(aes(group = country, x = year, y = population, color = country)) +
+geom_smooth(aes(), se = FALSE, size = 0.5)
+
+
+```
+

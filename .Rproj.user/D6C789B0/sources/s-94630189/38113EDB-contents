@@ -1,0 +1,32 @@
+---
+title: 'MSCS 264: Homework #29'
+subtitle: 'Project Team formation'
+output:
+  pdf_document:
+    fig_height: 3
+    fig_width: 4.5
+  word_document: default
+editor_options: 
+  chunk_output_type: console
+author: "YOUR NAME HERE"
+---
+
+
+1. The names of my project team are:
+
+
+2. If you are working alone offer a short note about WHY you feel it is the best way for you to show your knowledge. If you are working with more than 2 people, please verify that you have spoken to Prof BV about your plan. Note that your requirements on the rubric will be to have 4-5 graphs and 1000-1800 words.  If you are working in a team of 2, skip this question.
+
+
+3. Verify that each member of your group has read the "Teamwork" section of the [rubric](https://docs.google.com/document/d/10hyyeQ1JgDvgLZIJ0RLDXcipGFJ4wYf7Ai6TiJToqc4/edit?usp=sharing).
+
+
+4. Provide a link to your potential data source:
+
+
+5. Provide a brief description of your project ideas. A couple sentences is fine. Think about what questions you are interested in, or what variables you will consider. 
+
+
+
+Knit and submit ONE per group.
+

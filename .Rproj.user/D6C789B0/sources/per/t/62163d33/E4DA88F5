@@ -1,0 +1,32 @@
+{
+    "id": "E4DA88F5",
+    "path": "//home/rstudio/courses/2023-24-semester1-mscs-164/Project/Fay & Luanga Project Folder/Fay_Luanga/FINAL_PROJECT_DUE_DEC_14.Rmd",
+    "project_path": "FINAL_PROJECT_DUE_DEC_14.Rmd",
+    "type": "r_markdown",
+    "hash": "2621557849",
+    "contents": "",
+    "dirty": false,
+    "created": 1702055740129.0,
+    "source_on_save": false,
+    "relative_order": 1,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "20,2",
+        "scrollLine": "11",
+        "last_setup_crc32": "",
+        "chunk_output_type": "console",
+        "docOutlineVisible": "0",
+        "rmdVisualMode": "false",
+        "rmdVisualWrapConfigured": "true",
+        "rmdVisualModeLocation": "1453:1055.3333740234375"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1702280985,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1702280985991,
+    "read_only": false,
+    "read_only_alternatives": []
+}

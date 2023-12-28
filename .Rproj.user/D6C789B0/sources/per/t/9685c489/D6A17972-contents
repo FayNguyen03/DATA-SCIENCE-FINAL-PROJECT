@@ -1,0 +1,219 @@
+---
+title: 'MSCS 164: Homework 21 (Friday Nov 10)'
+subtitle: 'Due Friday, November 10, 2023 at 5 pm'
+author: "Luanga Kasanga"
+output: pdf_document
+editor_options: 
+  chunk_output_type: console
+---
+
+> Start by saving this file to your Submit folder as 'hw16_group_by_your_name.Rmd'
+
+> Change the author "YOUR NAME HERE" to your own name.
+
+> Try knitting often!
+
+## By completing this homework, you will be able to:
+
+-   use across in both mutate and summarize
+
+## Useful resources for this homework:
+
+In class activity Class \> Code \> c-functions \> 21_across.Rmd
+
+------------------------------------------------------------------------
+
+# Part 1: Campaign finance in Minnesota House races
+
+Once again we will use the data for the races for House of Representatives from state of Minnesota in 2018.
+
+```{r, message = FALSE}
+library(tidyverse)
+```
+
+```{r}
+fec_mn <- read_csv("~/Mscs 164 F23/Class/Data/fec_mn.csv") |>
+  slice(-18) |>
+    select(can_par_aff, can_inc_cha_ope_sea, can_off,
+         can_off_dis, ind_con, par_com_con, oth_com_con, can_con, tot_loa,
+         net_con, can_loa_rep, oth_loa_rep, tot_loa_rep, ind_ref, 
+         par_com_ref, oth_com_ref, tot_con_ref, net_ope_exp, cov_sta_dat,
+       cov_end_dat) |>
+  filter(can_off == "H")
+```
+
+1.  On HW 19, #5, your solution looked something like the code below. Combine lines 1 and 2 wtih "across", and combine lines 3-5 with another "across".
+
+```{r}
+fec_mn |>
+  select(can_par_aff, cov_sta_dat, cov_end_dat) |>
+  mutate(cov_sta_dat = mdy(cov_sta_dat), #1
+         cov_end_dat = mdy(cov_end_dat), #2
+         coverage_time = cov_end_dat - cov_sta_dat) |>
+  drop_na(cov_sta_dat, cov_end_dat) |>
+  group_by(can_par_aff) |>
+  summarize(n = n(), 
+            avg_start = mean(cov_sta_dat), #3 
+            avg_end = mean(cov_end_dat),   #4
+            avg_coverage = mean(coverage_time)  #5
+            )
+```
+
+```{r}
+fec_mn |>
+  select(can_par_aff, cov_sta_dat, cov_end_dat) |>
+  mutate(across(cov_sta_dat:cov_end_dat, mdy), coverage_time = cov_end_dat - cov_sta_dat) |>
+  drop_na(cov_sta_dat, cov_end_dat) |>
+  group_by(can_par_aff) |>
+  summarize(n = n(), 
+            across(cov_sta_dat:coverage_time, mean))
+```
+
+2.  On HW 19, #10, we saw that we could apply these two mutate statements to fix the individual contribution variable. Explain what these two lines of code do.
+
+```{=html}
+<!-- -->
+```
+      mutate(ind_con = parse_number(ind_con)) |>  
+      mutate(ind_con = ifelse(is.na(ind_con), 0, ind_con)) |> 
+
+These two lines of code fix the individual contribution variable, ind_con. The first line parses all the number in the ind_con column so that it turns the variable type into a number format. The second line then turns any values that are N/A into 0 values so that calculations can proceed as normal.
+
+### Using a custom function:
+
+Instead of running these two mutate statments, I can combine them both into a single function:
+
+```{r}
+# DO NOT EDIT THIS CHUNK: 
+fix_con <- function(x){
+  x <- parse_number(x)
+  x <- ifelse(is.na(x), 0, x)
+  return(x)
+}
+
+
+example_con <- c("$129,825.00", NA, "$280.88", "$99,948.12")
+
+# My new function, "fix_con" does both parsenumber and replace NA with 0: 
+fix_con(example_con)
+```
+
+3.  Examine the following code. What does line #1 do?
+
+```{r}
+# DO NOT EDIT THIS CHUNK
+fec_mn |>
+  mutate(party = fct_collapse(can_par_aff, "DEM/DFL"  = c("DEM", "DFL"), 
+                            "REP" = "REP", 
+                            other_level = "Other")) |> 
+  mutate(ind_con = fix_con(ind_con)) |>  #1
+  group_by(party) |>
+  summarize(n = n(),
+            mean_ind_con = mean(ind_con)) #2
+```
+
+Line 1 applies the new fix_con function ot the ind_con variable/column. So what it does is parse the numbers in the ind_con column by changing them to a number format variable, and then also changes all NA values to just 0.
+
+4.  Copy the chunk from the previous problem and modify line #1 and line #2 with "across" so they are applied to all columns that end with "con".
+
+```{r}
+fec_mn |>
+  mutate(party = fct_collapse(can_par_aff, "DEM/DFL"  = c("DEM", "DFL"), 
+                            "REP" = "REP", 
+                            other_level = "Other")) |> 
+  mutate(across(ends_with("con"), fix_con)) |>  #1 
+  group_by(party) |>
+  summarize(n = n(),
+            across(ends_with("con"), mean)) #2
+```
+
+5.  Examine the table you just created! (I have it printed below, in case you haven't gotten it yet.) Based on this information, briefly comment on:
+
+-   the number of candidates of the different parties (relative to each other)
+
+It seems that the DEM/DFL had the most candidates, almost double of the Republicans. There were only 4 non-Democratic or Republican candidates out of a total of 63 total candidates
+
+-   the average amount of money spent on campaigns of the different parties relative to each other.
+
+The average amount of money spent by campaigns was similiar between the Republican and Democrat parties. The Republicans overall had more net contributions than others. Other candidates spent much much less than the two main parties.
+
+-   which funding sources tend to be the largest (see the fec_mn_dictionary.txt in the class code folder for definitions)
+
+It seems that individual contributions tended to be the biggest sources of money for all three parties.
+
+-   are there differences between parties in the relative importance of each funding source?
+
+It seemed that Republicans tended to receive more contributions from party committees and PACS. Democrats tended to have more self-funded candidates (candidate contributions).
+
+    # A tibble: 3 × 7
+      party       n ind_con par_com_con oth_com_con can_con net_con
+      <fct>   <int>   <dbl>       <dbl>       <dbl>   <dbl>   <dbl>
+    1 DEM/DFL    39 431498.       670.       90418.   5027. 518307.
+    2 REP        20 399090.      1603.      311552.    699. 705397.
+    3 Other       4   4389.        37.5        675     176.   4744.
+
+# Part 2: A little review!
+
+6.  Using the code below as a start, create a density ridges plot comparing the individual contributions by party.
+
+```{r}
+# library(????)
+library(ggridges)
+
+fec_mn |>
+  mutate(party = fct_collapse(can_par_aff, "DEM/DFL"  = c("DEM", "DFL"), 
+                            "REP" = "REP", 
+                            other_level = "Other"), 
+         ind_con = fix_con(ind_con)/1000000) |>
+  group_by(party) |>
+  ggplot(aes(x = ind_con, y = party, fill = party, color = party)) +
+  geom_density_ridges(alpha = 0.5, show.legend = FALSE)
+```
+
+7.  Many of the "zeros" in the dataset may be for candidates who dropped out early in the campaign. If we focus on candidates for whom the financial coverage end date is after June 1, 2018, these are the more prominent candidates. Add code into your pipeline so that the data and resulting graph only includes candidates for whom cov_end_dat > "2018-06-01". Be sure that you have converted to date class first!!!!
+
+```{r}
+# library(????)
+library(ggridges)
+
+fec_mn |>
+  mutate(cov_end_dat = mdy(cov_end_dat)) |>
+  filter(cov_end_dat > "2018-06-01") |>
+  mutate(party = fct_collapse(can_par_aff, "DEM/DFL"  = c("DEM", "DFL"), 
+                            "REP" = "REP", 
+                            other_level = "Other"), 
+         ind_con = fix_con(ind_con)/1000000) |>
+  group_by(party) |>
+  ggplot(aes(x = ind_con, y = party, fill = party, color = party)) +
+  geom_density_ridges(alpha = 0.5, show.legend = FALSE) 
+```
+
+8.  Add a title, and label the x and y axis. Be sure to include units! Your title should indicate the state and year of the election. Also add a caption citing the data source: www.fec.gov/data/. If you'd like, include color and modify themes.
+
+```{r}
+# library(????)
+library(ggridges)
+
+fec_mn |>
+  mutate(cov_end_dat = mdy(cov_end_dat)) |>
+  filter(cov_end_dat > "2018-06-01") |>
+  mutate(party = fct_collapse(can_par_aff, "DEM/DFL"  = c("DEM", "DFL"), 
+                            "REP" = "REP", 
+                            other_level = "Other"), 
+         ind_con = fix_con(ind_con)/1000000) |>
+  group_by(party) |>
+  ggplot(aes(x = ind_con, y = party, fill = party, color = party)) +
+  geom_density_ridges(alpha = 0.5, show.legend = FALSE) +
+   labs(title="Individual Contributions to 2018 MN Campaigns", x="Individual Contributions (in millions)", y = "Party", caption = "www.fec.gov/data/", subtitle = "by Luanga") + 
+   theme_bw()
+```
+
+
+9.  Write alt-text for the graph. Be sure to use the Four Ingredients:
+
+-   What Kind of Graph or Chart Is It?
+-   What Variables Are on the Axes?
+-   What Are the Ranges of the Variables?
+-   What Does the Appearance Tell You About the Relationships Between the Variables?
+
+This is a density ridges which shows individual contributions to 2018 Minnesota Election campaigns, by party. On the x-axis, we have the number of individual contributions (in millions), and on the y axis is the party. The colour changes by party (DFL/DEM, Other, Rep). On the x axis, we have the variable individual contributions (in millions). This ranges from 0 to 6 million. On the y axis, we have the party (of which the range is DEM/DFL, Rep and Other). We filtered out for candidates that did not drop out before June 1 2018, and thus in our final graph there are only two parties with values, REP and the DFL. The Republicans and DFL had similiar peaks of individual contributions at the lower end of the 0-1 million dollar spectrum. The Republicans had more individual contributions that ranged between 1 and 3 million, though this caps out after 3 million dollars. This is in contrast to DFL, who had low individual contributions after 1 million dollars in compariosn to the republicans, but had a wider range of individual contributions, from 1 million dollar reaching as far as 6 million dollars. This graph can help us understand that Republican individual contributions were more numerous in the lower ranges, whereas the DFL individual contributions were able to attract more rich individuals at a lower frequency. 

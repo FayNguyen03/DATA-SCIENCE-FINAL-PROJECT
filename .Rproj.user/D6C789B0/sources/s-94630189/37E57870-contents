@@ -1,0 +1,35 @@
+---
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+```{r}
+fortnite <- read.csv("~/Mscs 164 F23/Project/Walder_Nolan_Project/Fortnite Statistics CSV.csv")
+
+library(ggplot2)
+library(mosaic)
+library(dplyr)
+library(tidyverse)
+```
+
+```{r}
+view(fortnite) 
+
+replace_periods_with_underscores <- function(fortnite) {
+  # Get the column names
+  col_names <- colnames(fortnite)
+  
+  # Replace periods with underscores in each column name
+  new_col_names <- gsub("\\.", "_", col_names)
+  
+  # Set the new column names to the data frame
+  colnames(fortnite) <- new_col_names
+  
+  # Return the modified data frame
+  return(fortnite)
+}
+
+fortnite_clean <- replace_periods_with_underscores(fortnite)
+
+```
+

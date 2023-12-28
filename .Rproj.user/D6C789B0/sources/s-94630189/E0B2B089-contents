@@ -1,0 +1,161 @@
+---
+title: "Should you invest in Apple stock?"
+author: "Sambhav Bikram Bista"
+date: "11/29/2023"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+subtitle: A comprehensive analysis of Apple’s stock in comparison to S&P 500 and Inflation
+  Rate
+editor_options:
+  chunk_output_type: console
+---
+
+```{r}
+library(readr)
+library(tidyverse)
+library(viridis)
+library(tidyr)
+library(ggthemes)
+library(lubridate)
+library(paletteer)
+
+```
+
+
+#Dataset for Apple
+
+```{r}
+apple_data <- read_csv("~/Mscs 164 F23/Project/apple_data.csv")
+apple_data
+```
+
+#Data Tidying for Apple Dataset 
+
+```{r}
+Apple <- apple_data |>
+  select(Date, `Close/Last`, Volume) |>
+  rename(Closing_Price = `Close/Last`) |>
+  mutate(Date = mdy(Date), Closing_Price = parse_number(Closing_Price)) 
+
+Apple
+```
+
+#Dataset for S&P 500 
+
+```{r}
+s_p_data <- read_csv("~/Mscs 164 F23/Project/s&p_data.csv")
+s_p_data 
+```
+
+#Data tidying for S&P 500 
+
+```{r}
+  sp_500 <- s_p_data |>
+  select(Date, `Close/Last`) |>
+  rename(Main_Closing_Price = `Close/Last`) |>
+  mutate(Date = mdy(Date),  
+         Closing_Price = Main_Closing_Price / 10) 
+
+sp_500
+```
+
+
+#Joining Apple's Dataset and S&P 500's Dataset 
+
+```{r}
+New_combined <- Apple |>
+  full_join(sp_500, by = join_by(Date)) |>
+  rename(Apple = Closing_Price.x, SP_500 = Closing_Price.y) |>
+  select(-Main_Closing_Price, -Volume) |>
+  pivot_longer(cols = Apple:SP_500, names_to = "Stock_Name", values_to = "Stock_Price")
+  
+
+New_combined
+```
+
+
+#1. Graph 1 : Apple vs. S&P 500 Stock Price Comparision 
+
+```{r}
+ggplot(New_combined, aes(x = Date, y = Stock_Price, color = Stock_Name)) +
+  geom_line() +
+  scale_color_colorblind() +
+  labs(title = "Apple and S&P 500 Stock Price Comparison",
+       x = "Date",
+       y = "Closing Price",
+       color = "Stock Name") +
+  theme_minimal()
+```
+Fig 1. 
+
+
+#Dataset for Inflation
+
+```{r}
+inf <- read_csv("~/Mscs 164 F23/Project/inf.csv")
+
+inf
+```
+
+```{r}
+inflation <- inf |>
+  rename(inflation_rate = T5YIE,
+         Date = DATE) |>
+  mutate(inflation_rate = ifelse(inflation_rate == ".", NA, inflation_rate)) |>
+  mutate(inflation_rate = parse_number(inflation_rate)) |>
+  filter(!is.na(inflation_rate))
+
+inflation
+```
+
+
+
+#Joining S&P 500 Dataset and Inflation Rate Dataset 
+
+```{r}
+sp_infla <- sp_500 |>
+  left_join(inflation, join_by(Date))
+
+sp_infla
+```
+
+#Graph 2: S&P 500 and Inflation Rate Comparision
+
+```{r}
+ggplot(sp_infla, aes(x = Date)) +
+  geom_line(aes(y = Closing_Price, color = "Closing Price")) +
+  geom_line(aes(y = inflation_rate * 100, color = "Inflation Rate")) +
+  scale_color_colorblind() +
+  labs(title = "S&P 500's Closing Price and Inflation Rate Comparision",
+       x = "Date",
+       y = "Values",
+       color = "Indicators") +
+  theme_minimal()
+```
+Fig 2. 
+
+#Joining Apple's Dataset and Inflation Rate's Dataset 
+
+```{r}
+Apple_Infla <- Apple |>
+  left_join(inflation, join_by(Date))
+
+Apple_Infla
+```
+
+#Graph 3: Apple and Inflation Rate Comparision
+
+```{r}
+ggplot(Apple_Infla, aes(x = Date)) +
+  geom_line(aes(y = Closing_Price, color = "Closing Price")) +
+  geom_line(aes(y = inflation_rate * 100, color = "Inflation Rate")) +
+  scale_color_colorblind() +
+  labs(title = "Apple's Closing Price and Inflation Rate",
+       x = "Date",
+       y = "Values",
+       color = "Indicators") +
+  theme_minimal()
+```
+Fig 3. 

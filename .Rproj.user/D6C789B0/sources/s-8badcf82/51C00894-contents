@@ -1,0 +1,416 @@
+---
+title: "CARBON DIOXIDE EMISSION"
+author: "Khanh Tra Nguyen Tran, Luanga Kasanga"
+date: "12/6/2023"
+output:
+  html_document: 
+    css: style.css
+    theme: lumen
+    highlighter: breezedark
+    includes:
+      in_header: hero-image.html
+  pdf_document: default
+editor_options:
+  chunk_output_type: console
+  always_allow_html: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE, message=FALSE, cache = TRUE, error = TRUE)
+```
+
+```{r, include=FALSE, error = TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+library(kableExtra)
+library(tidyverse)
+library(ggplot2)
+library(readr)
+library(dplyr)
+library(zoo)
+library(ggridges)
+library(countrycode)
+library(lubridate)
+library(ggplot2)
+library(gganimate)
+library(plotly)
+library(readxl)
+library(viridis)
+```
+
+# I. INTRODUCTION:
+
+In recent years, carbon dioxide ($CO_2$), a molecule born from the combustion of fossil fuels, has become a silent yet potent threat to human life and the environment. As the primary greenhouse gas, $CO_2$ emissions play a crucial role in climate change, casting a long shadow of devastating consequences across the globe. Rising sea levels threaten coastal communities, the temperature reaches the highest in hundreds of years, wildfires rage across parched landscapes, and droughts cast long shadows across fertile lands. These are not isolated incidents, but rather the consequences of the rising carbon dioxide emissions caused by the demand for energy. In this article, we will navigate a sea of data, charting the course of emissions across diverse nations and continents, and uncovering the intricate connections between human activity and the shifting balance of our planet.
+
+# II. DATASETS:
+
+For this article, we use three datasets:
+
+-   CO₂ Emissions Dataset (Source: [Our World In Data](https://ourworldindata.org/co2-dataset-sources "CO₂ emissions dataset: Our sources and methods"))
+
+-   Climate-related Disaster Frequency (Source: [International Monetary Fund](https://climatedata.imf.org/datasets/b13b69ee0dde43a99c811f592af4e821/explore "Climate-related Disasters Frequency"))
+
+-   NFBA 2023 Public Data (Source: [Global Footprint Network](https://www.footprintnetwork.org/licenses/public-data-package-free/ "National Footprint and Biocapacity Accounts 2023 Public Data Package"))
+
+```{r}
+# Source: Our World in Data
+co2 <- readr::read_csv('~/Mscs 164 F23/Project/Fay & Luanga Project Folder/Fay_Luanga/owid-co2-data.csv')
+
+# Codebook; Source: Our World in Data
+codebook <-  readr::read_csv('~/Mscs 164 F23/Project/Fay & Luanga Project Folder/Fay_Luanga/owid-co2-codebook.csv')
+
+# Climate Disaster Frequency Dataset
+Climate_related_Disasters_Frequency <- read_csv("~/Mscs 164 F23/Project/Fay & Luanga Project Folder/Fay_Luanga/Climate-related_Disasters_Frequency.csv")
+# Ecological Footprint Dataset
+
+NFBA_2023_Public_Data_Package_1_0 <- read_excel("//home/rstudio/courses/2023-24-semester1-mscs-164/Project/Fay & Luanga Project Folder/Fay_Luanga/NFBA 2023 Public Data Package 1.0.xlsx", 
+    sheet = "Country Results (2019)", range = "A23:AF206")
+
+eco_footprint <- NFBA_2023_Public_Data_Package_1_0
+
+```
+
+For the first dataset, since it includes both data from nations and continents, we decided to split it into to a sub-dataset (**continent_co2** and **county_co2**) using left_Join.
+
+```{r}
+# Here, we are trying to create a separate, cleaner dataset which includes just continents (and not states!!!). We are also filtering the data to be after 1970.
+
+continent_co2 <- co2 |>
+  filter(year >= 1970, country %in% c("Africa","Asia", "Europe", "South America", "North America", "Oceania")) |>
+  select(-gdp)
+```
+
+```{r}
+# Here, we are trying to create a separate, cleaner dataset which includes just states (and not continents!!!). We are also filtering the data to be after 1970.
+country_co2 <- co2 |>
+  filter(year >= 1970, !(country %in% c("Africa","Asia", "Europe", "South America", "North America", "Oceania")), 
+         !is.na(iso_code))
+```
+
+```{r}
+# Pivoting longer to make it suitable for viewing
+disasters_long <- Climate_related_Disasters_Frequency |> 
+  filter(Indicator == "Climate related disasters frequency, Number of Disasters: TOTAL") |>
+  pivot_longer(
+    cols = starts_with("F"), 
+    names_to = "year", 
+    values_to = "disasters") |>
+  mutate_at("year", str_replace, "F", "") |>
+  replace_na(list(disasters = 0)) |>
+  mutate(iso_code = ISO3, year = parse_number(year)) |>
+  select(year, iso_code, disasters) 
+```
+
+We also utilized the ***countrycode*** package to get the ISO Code and the official names of nations and continents.
+
+```{r}
+# Converting country ISO Codes to a country name, or to designate a region for it. This is where the country code library help us out!
+
+disasters_long$continent <- countrycode(sourcevar = disasters_long$iso_code,
+                             origin = "iso3c",
+                             destination = "un.region.name")
+disasters_long$country <- countrycode(sourcevar = disasters_long$iso_code,
+                             origin = "iso3c",
+                             destination = "iso.name.en")
+country_co2$region <- countrycode(sourcevar = country_co2$iso_code,
+                             origin = "iso3c",
+                             destination = "un.region.name")
+
+eco_footprint$continent <- countrycode(sourcevar = eco_footprint$Country,
+                             origin = "country.name",
+                             destination = "un.region.name")
+```
+
+```{r}
+disasters_long <- disasters_long |>
+  mutate(country = fct_recode(country, "United States" = "United States of America (the)", "Philippines" = "Philippines (the)", "Vietnam" = "Viet Nam"))
+```
+
+```{r}
+#Extra tidying for ecological footprint
+eco_footprint <- eco_footprint |>
+  mutate(eco_decifit = `Ecological (Deficit) or Reserve`)
+```
+
+```{r}
+country_graph1 <- data_frame(
+Variable = c("cement_co2", "coal_co2", "flaring_co2", "gas_co2", "land_use_change_co2", "oil_co2", "other_industry_co2"),
+Definition = codebook |> 
+  filter(column %in% Variable) |>
+  pull(description))
+kable(country_graph1, caption = "Variables in CO2 emission Table")
+```
+
+# III. QUESTIONS:
+
+### 1. Which countries emitted the most $CO_2$ from 1970 to 2021?
+
+```{r}
+top10_country <- country_co2 |>
+  filter(year == 2021) |>
+  slice_max(cumulative_co2_including_luc, n = 10) |>
+  mutate(ranking = row_number()) |>
+  tibble("top_country" = country, "rank" = ranking) |>
+  select(top_country, rank)
+```
+
+```{r,error =TRUE, fig.alt = 'Stacked area chart illustrating the distribution of each CO2 sources with facets for each country. On X axis is year (range: 1970 - 2020) and y axis is carbon dioxide emissions (0 - 120 hundreds of millions tonnes). USA and China have the highest cummulative of CO2 emission up to 2021. Most of the CO2 emission was contributed from coal, gas, land use, and oil.', out.width="100%", fig.cap = "Fig 1. A plot of Top 10 Countries with The Highest Carbon Dioxide Emission (updated at 2021)"}
+
+country_co2 |> 
+  right_join(top10_country, join_by(country == top_country)) |>
+  select(country,
+         year, 
+         cement_co2, 
+         coal_co2, 
+         flaring_co2, 
+         gas_co2, 
+         land_use_change_co2,
+         oil_co2, 
+         other_industry_co2) |>
+  replace_na(list(other_industry_co2 = 0)) |>
+  mutate(country = fct_relevel(country, "United States", "China", "Russia", "Brazil", "India", "Germany", "Indonesia", "United Kingdom", "Canada", "Japan"),
+         across(cement_co2:other_industry_co2)/100) |>
+  pivot_longer(cement_co2:other_industry_co2, names_to = "co2_sources", values_to = "value") |>
+  mutate(co2_sources = fct_recode(co2_sources, 
+                                  "Coal" = "coal_co2",
+                                  "Flaring" = "flaring_co2",
+                                  "Cement" = "cement_co2",
+                                  "Gas" = "gas_co2",
+                                  "Land Use" = "land_use_change_co2",
+                                  "Oil" = "oil_co2",
+                                  "Other industry" = "other_industry_co2")) |>
+  ggplot(aes(x=year, 
+                  y=value, 
+                  fill=fct_reorder2(co2_sources, value, year))) +
+  geom_area() +
+  facet_wrap(~country) +
+  theme_classic() +
+  theme(legend.position = "top")+
+  scale_x_continuous(breaks=seq(1970,2020,20))+
+  scale_fill_viridis(discrete=TRUE)+
+  labs(title = "Carbon Dioxide Source Profiles of Top Emitting Nations (1970-2021)", x = "Year", y = "Carbon Dioxide Emission (hundreds of  million tonnes)", fill = "Sources", caption = "Source: Global Carbon Budget (2022)") 
+```
+
++---------------------------------------------------+---------------+
+| Country                                           | Rank          |
++===================================================+===============+
+| United States                                     | 1             |
++---------------------------------------------------+---------------+
+| China                                             | 2             |
++---------------------------------------------------+---------------+
+| Russia                                            | 3             |
++---------------------------------------------------+---------------+
+| Brazil                                            | 4             |
++---------------------------------------------------+---------------+
+| India                                             | 5             |
++---------------------------------------------------+---------------+
+| Germany                                           | 6             |
++---------------------------------------------------+---------------+
+| Indonesia                                         | 7             |
++---------------------------------------------------+---------------+
+| United Kingdom                                    | 8             |
++---------------------------------------------------+---------------+
+| Canada                                            | 9             |
++---------------------------------------------------+---------------+
+| Japan                                             | 10            |
++---------------------------------------------------+---------------+
+
+: Table 2.Top 10 emitting countries (1970 - 2021)
+
+### 2. Which countries suffered the most climate-related disasters?
+
+```{r,error =TRUE}
+top10_disaster_country <-
+  disasters_long |>
+  group_by(iso_code) |>
+  summarize(sum_disaster = sum(disasters)) |>
+  slice_max(sum_disaster, n = 10)
+```
+
+```{r,error =TRUE}
+top_10_disasters <- country_co2 |> 
+  semi_join(top10_disaster_country, join_by(iso_code)) |>
+  select(country,
+         year, 
+         cement_co2, 
+         coal_co2, 
+         flaring_co2, 
+         gas_co2, 
+         land_use_change_co2,
+         oil_co2, 
+         other_industry_co2,
+         co2_including_luc) |>
+  mutate(across(cement_co2:co2_including_luc)/100,
+         country = fct_relevel(country, "United States", "China", "India", "Philippines", "Indonesia", "Bangladesh", "Vietnam", "Mexico", "Brazil", "Japan")) |>
+  replace_na(list(other_industry_co2 = 0)) |>
+  pivot_longer(cement_co2:other_industry_co2, names_to = "co2_sources", values_to = "value") |>
+  mutate(co2_sources = fct_recode(co2_sources, 
+                                  "Coal" = "coal_co2",
+                                  "Flaring" = "flaring_co2",
+                                  "Cement" = "cement_co2",
+                                  "Gas" = "gas_co2",
+                                  "Land Use" = "land_use_change_co2",
+                                  "Oil" = "oil_co2",
+                                  "Other industry" = "other_industry_co2")) 
+```
+
+```{r, fig.alt = 'Dual-axis line and stacked area chart divided into panels for each country in the top 10 for disaster occurrences. Each area represents a different source of CO2 emissions (color-coded) with the red line showing the trend of number of disasters for each country over time. On X axis is year (range: 1970 - 2020), left y-axis is carbon dioxide emissions (0 - 120 hundreds of millions tonnes), and right y-axis is number of disasters.', out.width="100%", fig.cap = "Fig 2. A plot of Top 10 Countries Most Affected by Climate-related Disasters(updated at 2021)"}
+top_10_disasters |> 
+    ggplot(aes(x = year)) +
+    geom_area(aes(y=value, 
+                  fill=fct_reorder2(co2_sources, value, desc(year)))) +
+    facet_wrap(~country) +
+    theme_classic() +
+    geom_smooth(data = disasters_long |> semi_join(top10_disaster_country),
+             aes(x = year, y = disasters),
+             color = "red",  
+             size = 0.5,
+             se = FALSE) +      
+  theme_classic() +
+  theme(legend.position = "top")+
+  theme(axis.title.y.right = element_text(color = "red"), axis.title.y.left = element_text(color = "blue")) + 
+  scale_y_continuous(
+    name = "Carbon Dioxide Emission (hundreds of  million tonnes)",
+    sec.axis = sec_axis(~., name = "Number of Disasters", breaks = seq(0, 200, 50))
+  ) +
+  scale_x_continuous(breaks=seq(1970,2020,20))+
+  scale_fill_viridis(discrete=TRUE) +
+  labs(title = "Distribution of CO2 Emission Sources in Top Disaster-Prone Countries (1970-2021)", x = "Year", fill = "Sources", caption = "Source: Global Carbon Budget (2022)\nThe Emergency Events Database (EM-DAT)")
+
+```
+
+# Top 10 Highest Ecofootprint Decifit
+
+```{r,error =TRUE}
+eco_footprint |>
+  group_by(Country) |>
+  summarize(eco_decifit, continent) |>
+  slice_min(eco_decifit, n = 10) |>
+  mutate("rank" = row_number()) |>
+  ggplot(aes(x=fct_reorder2(Country, Country, rank, .desc = FALSE),y=eco_decifit, fill=fct_reorder2(continent, Country, rank), text = paste(Country, eco_decifit))) +
+  geom_bar(stat="identity") +
+  theme_classic() +
+  labs(title = "Room to Improve..", subtitle = "Top 10 countries with biggest ecological decifit", alt ="aa", x = "Country", y = "Ecological Decifit (gha)", fill = "Continent", caption = "Source: Global Footprint Centre") 
+
+ggplotly(tooltip="text")
+```
+
+# Top 10 Lowest Ecofootprint Decifit
+
+```{r,error =TRUE}
+eco_footprint |>
+  group_by(Country) |>
+  summarize(eco_decifit, continent) |>
+  slice_max(eco_decifit, n = 10) |>
+  mutate("rank" = row_number()) |>
+  ggplot(aes(x=fct_reorder2(Country, Country, rank, .desc = FALSE),y=eco_decifit, fill=fct_reorder2(continent, Country, rank), text = paste(Country, eco_decifit))) +
+  geom_bar(stat="identity") +
+  theme_classic() +
+  labs(title = "The Lowest Net Ecological Decifits", alt ="aa", x = "Country", y = "Ecological Decifit ((gha)", fill = "Continent", caption = "Source: Global Footprint Centre") 
+
+ggplotly(tooltip="text")
+```
+
+### Which continents bear the brunt of responsiblity, and then the consequences climate change??
+
+Variable: co2_per_capita
+
+```{r}
+continent_co2 |>
+  filter(year >= 1970) |>
+  ggplot() +
+  geom_col(aes(x = year, y = co2_per_capita, fill = country), position = "fill") +
+  coord_flip() + 
+  labs(title = "Contribution to Climate Change by Continent", caption = "Data from ourworldindata.com", x = "Year", y = "CO2 Per Capita (% of global)", fill = "Continent")
+  
+```
+
+And now, which countries are ruined by climate change related disasters?
+
+```{r}
+disasters_long |>
+  filter(year >= 1990) |>
+  ggplot() +
+  geom_col(aes(x = year, y = disasters, fill = continent), position = "fill") +
+  coord_flip() + 
+  labs(title = "Sufferors of Climate Change by Continent", caption = "Data from ourworldindata.com", x = "Year", y = "Share of Climate Related Disasters", fill = "Continent")
+  
+```
+
+Just testing some stuff:
+
+```{r}
+continent_co2 |>
+  filter(year >= 1970) |>
+ggplot(aes(group = country, x = year, y = population, color = country)) +
+geom_smooth(aes(), se = FALSE, size = 0.5) +
+  labs(
+  title = "Population vs CO2 Expansion",
+  subtitle = "1970-Present",
+  caption = "Data from Ourworldindata.org",
+  tag = "Graph 5",
+  alt = "?",
+  alt_insight = "insight"
+)
+
+```
+
+ignore pls
+
+continent_co2 \|\> filter(year \>= 1970) \|\> ggplot(aes(group = country, x=year, fill = country)) + geom_point(stat='identity', aes(y=co2), size=.1, color="black", alpha=.4) + geom_line(aes(y=population, color = country), size=0.5) +
+
+scale_y\_continuous(
+
+    # Features of the first axis
+    name = "Temperature (Celsius °)",
+
+    # Add a second axis and specify its features
+    sec.axis = sec_axis(name="Price ($)")
+
+) +
+
+ggtitle("Temperature down, price up")
+
+```{r}
+continent_co2 |>
+  #filter(year >= 1970) |>
+ggplot(aes(group = country, x=year, colour = country)) +
+#geom_line(aes(y=population), size=0.5) +
+  geom_line(aes(y=co2)) + 
+  labs(title = "Continents and CO2", x = "Year", y="Annual CO2 Emissions in millions of metric tons", colour = "Continent", caption = "Source: Our World in Data 2022")
+```
+
+*Static / Interactive Plot*
+
+```{r}
+country_co2 |>
+  filter(year == 2018) |>
+ggplot(aes(population, co2_per_gdp, colour = region, text = paste(country))) +
+  geom_point() +
+  theme_bw() +
+  labs(title = "Population, Carbon and GDP", x = "Population", y="Annual CO2 Emissions per GDP $", colour = "Continent", caption = "Source: Our World in Data 2022")
+  ggplotly(tooltip="text")
+```
+
+![](2.html)
+
+# IV. CONCLUSION:
+
+ANIMATED PLOT
+
+How country CO2 emissions and GDP has changed over time.
+
+\#`{r} ggplot(   continent_co2,    aes(x = co2, y=co2_per_capita, size = population, colour = country)   ) +   geom_point(show.legend = TRUE, alpha = 0.7) +   scale_color_viridis_d() +   scale_size(range = c(2, 12)) +   scale_x_log10() +   labs(x = "CO2 emissions", y = "CO2 per capita") + transition_time(year) +   labs(title = "Year: {frame_time}")` with facet wraps (ignore) \#`{r} ggplot(   continent_co2,    aes(x = co2, y=co2_per_capita, size = population, colour = country)   ) +   geom_point(show.legend = TRUE, alpha = 0.7) +   scale_color_viridis_d() +   scale_size(range = c(2, 12)) +   scale_x_log10() +   labs(x = "CO2 emissions", y = "CO2 per capita") +   facet_wrap(~country) + transition_time(year) +   labs(title = "Year: {frame_time}")`
+
+#```{r} 
+ggplot(continent_co2,   
+       aes(year, co2_per_capita, group = country, color = factor(country))   ) +   
+  geom_line() +   scale_color_viridis_d() +   
+  labs(x = "Year", y = "CO2 Per Capita", color = "Continent", subtitle = "-", title = "Emissions over the years...", caption = "Data from Our World in Data Org" ) +   
+  theme(legend.position = "top") +   
+  geom_point(aes(group = seq_along(year))) + 
+  transition_reveal(year)
+#```
+
+![](1.gif)
+
+# V. Reference:

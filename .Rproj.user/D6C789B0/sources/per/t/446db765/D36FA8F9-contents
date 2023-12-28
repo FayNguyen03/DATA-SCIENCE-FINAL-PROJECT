@@ -1,0 +1,199 @@
+---
+title: 'MSCS 164: Homework 25 (Monday Nov 13)'
+subtitle: 'Due Friday, November 17, 2023 at 5 pm'
+author: "Luanga Kasanga"
+output: pdf_document
+urlcolor: blue
+editor_options: 
+  chunk_output_type: console
+---
+
+
+> Start by saving this file to your Submit folder as 'hw25_joins.Rmd'
+
+> Change the author "YOUR NAME HERE" to your own name.
+
+> Try knitting often!
+
+## By completing this homework, you will be able to:
+
+- use left_join and full_join to join two datasets together  
+
+- for two small datasets, write out the result of their join
+## Useful resources for this homework:
+
+In class activity Class > Code > d-tidy > 25_joins.Rmd
+
+R4DS Ch 19.1 - 19.3.1
+
+-------------------------
+
+
+
+
+```{r, message = FALSE}
+library(tidyverse)
+library(nycflights13)
+```
+
+
+# Part 1. More practice
+
+Consider the following hypothetical datasets:
+
+class_data
+
+student   pets   fydorm
+1            0   H     
+2            2   K     
+3            1   E     
+5            1   K
+
+
+sis_data
+
+student  major
+1        art
+6        bio  
+3        chem
+
+
+
+For each, write the result of the code.
+
+
+1. class_data |> left_join(sis_data)
+
+student   pets   fydorm  major
+1            0   H     art
+2            2   K     N/A
+3            1   E    chem
+5            1   K    N/A
+
+
+2. sis_data |> left_join(class_data)
+
+student  major    pets fydorm
+1        art      0    H
+6        bio     N/A
+3        chem    1     E
+
+
+
+3. class_data |> full_join(sis_data)
+
+student   pets   fydorm  major
+1            0   H     art
+2            2   K     N/A
+3            1   E    chem
+5            1   K    N/A
+6    N/A N/A bio
+
+# Part 2: Which carriers fly from Newark?
+
+```{r}
+newark_stats <- flights |>
+  filter(origin == "EWR") |>
+  group_by(carrier) |>
+  summarize(n =n(), mean_delay = mean(arr_delay, na.rm = TRUE), prop_late = mean(arr_delay >10, na.rm = TRUE)) |>
+  arrange(desc(n))
+
+newark_stats
+```
+
+
+UA, EV, B6, WN, US, DL, AA, MQ, VX, 93, AS, OO all fly  from Newark
+
+4. For each group of capitalized words, choose the correct one (delete the others) to describe what the "filter" does. 
+
+We keep only the ROWS of the flights dataset where the VALUE of the origin column is EWR. (In other words, we keep only flights departing from Newark airport). 
+
+5. For each group of capitalized words, choose the correct one (delete the others) to describe the observations. Also fill in the blank.
+
+Each ROW of the newark_stats dataset represents one carrier. 
+
+
+6. Write a brief definition for each of the variables in the newark_stats dataset.
+
+carrier - The code for the airline carrier
+n - the number of observations for each carrier flight out of an airport
+mean_delay - The mean delay for that carrier's flights out of Newark
+prop_late - The proportion of that carrier's lfights out of Newark that were late
+
+7. See the help menu for the airlines dataset. Join this dataset to newark_stats so that our resulting dataset has 12 rows and 5 columns.
+
+```{r}
+?airlines
+```
+
+```{r}
+newark_stats |>
+  left_join(airlines)
+``` 
+  
+8. Now join newark_stats and airlines so that the result has 16 rows. Which do you think is preferred, if we are just interested in Newark?
+
+```{r}
+newark_stats |>
+  full_join(airlines)
+``` 
+
+I would prefer left_join, since there are 4 airlines included in full_Join that would not be relevant for our study of Newark.
+
+
+# Part 2. Age of planes
+The flights dataset contains a variable "tailnum" which identifies a particular plane. Information about each plane is contained in the "planes" dataset. 
+
+9. Check the help for "planes". What does the variable "year" represent in this dataset?
+
+```{r}
+?planes
+```
+
+```{r}
+planes
+```
+10. For each tailnum, find the proportion of times it was late (arr_delay > 10). Join this to the planes dataset, and then make a plot like the one in Homework > images > hw25_prop_late_by_year.png. (HINT: Break this problem into small steps!!!)
+
+
+
+
+
+THIS IS MY ANSWER:
+```{r}
+flights |>
+  left_join(planes, join_by(tailnum)) |>
+  filter(origin == "EWR") |>
+  group_by(year.y) |>
+  summarize(n =n(), mean_delay = mean(arr_delay, na.rm = TRUE), prop_late = mean(arr_delay >10, na.rm = TRUE)) |>
+  arrange(desc(year.y)) |>
+  ggplot(aes(x=year.y, y=prop_late)) + 
+  geom_point()+
+  geom_smooth()+
+  labs(title="Relationship of plane age to Proportion of late flights",
+       x="Year of Manufacture", y = "Proportion Late")+
+  theme_classic() 
+```
+
+```{r}
+flights |>
+  left_join(planes, join_by(tailnum)) |>
+  filter(origin == "EWR") |>
+  group_by(tailnum) |>
+  summarize(n =n(), prop_late = mean(arr_delay > 10, na.rm = TRUE), year = mean(year.y, na.rm = TRUE)) |>
+  filter(n > 10) |>
+  ggplot(aes(x=year, y=prop_late)) + 
+  geom_point(alpha = 0.25)+
+  geom_smooth()+
+  labs(title="Relationship of plane age to Proportion of late flights",
+       x="Year of Manufacture", y = "Proportion Late")
+```
+
+11. Write alt-text for this graph. Be sure to use the Four Ingredients:
+  * What Kind of Graph or Chart Is It?
+  * What Variables Are on the Axes?
+  * What Are the Ranges of the Variables?
+  * What Does the Appearance Tell You About the Relationships Between the Variables?
+
+
+This is a scatter plot that shows relationship of plane age to the proportion of late flights. On the X axis, we have the year of manufacture as the variable. On the Y axis, we have the proportion of late flights as the y variable. The ranges of the year of manufacture are from 1960 to 2013. The ranges of proportion late are from 0.0 to 0.8. The appearance of the graph tell us that there is no real relationship between plane age and the proportion of late flights. It seems that there is a slight increase between years 1990 and 2010 before it dips down. However, this could just be simply down to the fact that this is when most planes are manufactured. As such, from the appearance of this graph we can determine that there is no significant relationship between plane age and the proportion of late flights from a carrier.

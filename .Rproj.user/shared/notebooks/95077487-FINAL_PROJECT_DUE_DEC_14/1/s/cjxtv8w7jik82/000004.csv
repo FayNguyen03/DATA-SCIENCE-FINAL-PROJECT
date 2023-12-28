@@ -1,0 +1,7 @@
+"0","continent_co2 <- co2 |>"
+"0","  filter(year >= 1970, country %in% c(""Africa"",""Asia"", ""Europe"", ""South America"", ""North America"", ""Oceania"")) |>"
+"0","  select(-gdp,"
+"0","         -iso_code)"
+"2","Error in select(filter(co2, year >= 1970, country %in% c(""Africa"", ""Asia"",  : 
+  could not find function ""select""
+"

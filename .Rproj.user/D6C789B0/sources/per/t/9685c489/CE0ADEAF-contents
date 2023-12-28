@@ -1,0 +1,255 @@
+---
+title: 'MSCS 164: Homework 24 (Friday Nov 10)'
+subtitle: 'Due Friday, November 17, 2023 at 5 pm'
+author: "Luanga Kasanga"
+output: pdf_document
+urlcolor: blue
+editor_options: 
+  chunk_output_type: console
+---
+
+
+> Start by saving this file to your Submit folder as 'hw24_more_pivots.Rmd'
+
+> Change the author "YOUR NAME HERE" to your own name.
+
+> Try knitting often!
+
+## By completing this homework, you will be able to:
+
+- write code to pivot a dataset wider
+
+- use pivot_wider to make (summary) tables more easily read by humans
+
+## Useful resources for this homework:
+
+In class activity Class > Code > d-tidy > 24_more_pivots.Rmd, along with  22_pivot_longer.Rmd, 23_pivot_wider.Rmd
+
+R4DS Ch on Data Tidying
+
+-------------------------
+```{r, message=FALSE}
+library(tidyverse)
+library(palmerpenguins)
+```
+
+
+
+# Part 1:  NFL fans: Which pivot do we need?
+
+We are going to create a plot similar to the one in the article ("How Every NFL Team's Fans Lean Politically")[https://fivethirtyeight.com/features/how-every-nfl-teams-fans-lean-politically/]. These data are the results of a poll from 2017 (This was in the midst of the protests in which NFL players knelt during the nation anthem, which quickly became politically polarizing). 
+
+```{r}
+nfl_fans <- read_csv(url("https://raw.githubusercontent.com/fivethirtyeight/data/master/nfl-fandom/NFL_fandom_data-surveymonkey.csv"), skip = 1)
+
+
+nfl_fans
+```
+
+1. What does the code below do?
+
+```{r}
+nfl_fans |>
+  select(Team, `Dem%`, `Ind%`, `GOP%`) |>
+  rename(Rep = `GOP%`, Dem = `Dem%`, Ind = `Ind%`) 
+```
+
+It selects only the columns Team, Dem%, Ind% and GOP%. It then renames the three DEM%, Ind& and GOP% columns to Dem, Ind and Rep respecitively
+
+2. Add to the pipeline above: parse the percentages to numbers using "across".
+
+
+```{r}
+nfl_fans |>
+  select(Team, `Dem%`, `Ind%`, `GOP%`) |>
+  rename(Rep = `GOP%`, Dem = `Dem%`, Ind = `Ind%`) |>
+  mutate(across(Dem:Rep, parse_number))
+```
+
+3. Add to your pipeline: pivot the data so that it has columns Team, party, and percent. 
+
+```{r}
+nfl_fans |>
+  select(Team, `Dem%`, `Ind%`, `GOP%`) |>
+  rename(Rep = `GOP%`, Dem = `Dem%`, Ind = `Ind%`) |>
+  mutate(across(Dem:Rep, parse_number)) |>
+  pivot_longer(Dem:Rep, names_to = "party", values_to = "percent")
+```
+
+4. Copy your pipeline, and pipe it into the graph:
+
+
+```{r, error = TRUE}
+nfl_fans |>
+  select(Team, `Dem%`, `Ind%`, `GOP%`) |>
+  rename(Rep = `GOP%`, Dem = `Dem%`, Ind = `Ind%`) |>
+  mutate(across(Dem:Rep, parse_number)) |>
+  pivot_longer(Dem:Rep, names_to = "party", values_to = "percent") |>
+  ggplot() +
+  geom_col(aes(x = Team, y = percent, fill = party), position = "fill") +
+  coord_flip() +
+  scale_fill_manual(values = c("Dem" = "blue", "Ind" = "gray", "Rep" = "red"),
+                    aesthetics = "fill")
+```
+
+
+
+5. In the graph in the article, teams are ordered by the way the fans "Lean". Add steps into your pipeline to calculate the "lean" (Dem - Rep) and order the teams according to lean. 
+
+
+```{r}
+nfl_fans |>
+  select(Team, `Dem%`, `Ind%`, `GOP%`) |>
+  rename(Rep = `GOP%`, Dem = `Dem%`, Ind = `Ind%`) |>
+  mutate(across(Dem:Rep, parse_number)) |>
+  mutate("lean" = Dem - Rep)  |>
+  pivot_longer(Dem:Rep, names_to = "party", values_to = "percent")
+```
+
+
+```{r, error = TRUE}
+nfl_fans |>
+  select(Team, `Dem%`, `Ind%`, `GOP%`) |>
+  rename(Rep = `GOP%`, Dem = `Dem%`, Ind = `Ind%`) |>
+  mutate(across(Dem:Rep, parse_number)) |>
+  mutate("lean" = Dem - Rep)  |>
+  pivot_longer(Dem:Rep, names_to = "party", values_to = "percent") |>
+  ggplot() +
+  geom_col(aes(x = fct_reorder(Team, lean), y = percent, fill = party), position = "fill") +
+  coord_flip() +
+  scale_fill_manual(values = c("Dem" = "blue", "Ind" = "gray", "Rep" = "red"),
+                    aesthetics = "fill")
+```
+
+# Part 2: Airline Safety. Multiple columns longer
+
+Read in the csv file below which was scraped from a fivethirtyeight.com article entitled [Should Travlers Avoid Flying Airlines That Have Had Crashes in the Past?](https://fivethirtyeight.com/features/should-travelers-avoid-flying-airlines-that-have-had-crashes-in-the-past/). 
+
+
+```{r}
+airlinesafety <- read_csv("~/Mscs 164 F23/Class/Data/airline-safety.csv") 
+print(airlinesafety, width = Inf)
+```
+
+
+Your final tidy dataset should look like this:
+```
+# A tibble: 112 x 6
+   airline      avail_seat_km_pe… years      incidents fatal_accidents fatalities
+   <chr>                    <dbl> <chr>          <dbl>           <dbl>      <dbl>
+ 1 Aer Lingus           320906734 1985_1999         2               0          0
+ 2 Aer Lingus           320906734 2000_2014         0               0          0
+ 3 Aeroflot*           1197672318 1985_1999        76              14        128
+ 4 Aeroflot*           1197672318 2000_2014         6               1         88
+ 5 Aerolineas …         385803648 1985_1999         6               0          0
+ 6 Aerolineas …         385803648 2000_2014         1               0          0
+ 7 Aeromexico*          596871813 1985_1999         3               1         64
+ 8 Aeromexico*          596871813 2000_2014         5               0          0
+ 9 Air Canada          1865253802 1985_1999         2               0          0
+10 Air Canada          1865253802 2000_2014         2               0          0
+# … with 102 more rows
+```
+
+
+6. Explain why the current airlinesafety dataset is not tidy.
+
+
+
+It is not tidy as each row is not an observation per say.
+
+7. Use pivot_longer to create a tidy version of the dataset by filling in the blanks in the code below. (Notice that when the column names are long we can specificy which columns to pivot by number, 3:8, rather than name.)
+
+
+```{r, error = TRUE}
+airlinesafety |>
+  pivot_longer(3:8, names_to =  ____ , names_sep = ___)
+```
+
+```{r, error = TRUE}
+airlinesafety |>
+  pivot_longer(3:8, names_to =  c("incident", "year"), names_sep = " ",
+    values_to = "count")
+```
+
+
+THIS IS MY RIGHT ANSWER:
+```{r, error = TRUE}
+airlinesafety |>
+  pivot_longer(3:8, names_to =  c(".value", "year"), names_sep = " ")
+```
+
+# Part 3: Pivot_wider multiple columns
+
+8. Add pivot_wider to the pipeline below to produce this table:
+
+```
+# A tibble: 3 × 7
+   year Adelie_female Adelie_male Chinstrap_female Chinstrap_male Gentoo_female Gentoo_male
+  <int>         <int>       <int>            <int>          <int>         <int>       <int>
+1  2007            22          22               13             13            16          17
+2  2008            25          25                9              9            22          23
+3  2009            26          26               12             12            20          21
+```
+
+
+```{r}
+penguins |>
+  drop_na(sex) |>
+  count(year, species, sex) |>
+  pivot_wider(
+    names_from = c(species, sex),
+    values_from = n
+  )
+```
+
+
+Side note: Why might we want a table that looks like this? With a little more formatting we can get something that looks like Homework > images > hw24_pretty_table.png. 
+
+
+It is clear, and fits much more onto a screen, and is more accessible for a screenreader to read. 
+
+# Part 4: Practicing terminology
+
+In each of the following, there is a chunk of code followed by a written description of what the code does. In each place where the description says ROW/COLUMN/VALUE choose ONE of these and delete the others. 
+
+For example:
+
+The code below keeps only the ROWS where the VALUE of sex is NA.
+
+Answer: This keeps only the ROWS where VALUE of sex is NA.
+
+```{r}
+penguins |>
+  filter(sex == "female")
+```
+
+
+9. The code below keeps only the COLUMNS labelled species, sex, and island.
+
+```{r}
+penguins |>
+  select(species, sex, island)
+```
+
+
+10. The code below removes the ROWS where sex is NA.
+
+```{r}
+penguins |>
+  drop_na(sex)
+```
+
+
+11. The code below counts the number of ROWS of each species.
+
+```{r}
+penguins |>
+  count(species)
+```
+
+
+
+12. In the penguins dataset, each ROW is a penguin. 
+
+
+13. In the penguins dataset, the possible VALUES for species are Adelie, Chinstrap and Gentoo.
